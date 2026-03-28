@@ -10,6 +10,67 @@ import {
 } from "@/components/ui/card";
 import { api } from "@/trpc/react";
 
+function SyncButton() {
+  const utils = api.useUtils();
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const syncTxMutation = api.basiq.syncTransactions.useMutation({
+    onSuccess: () => {
+      setSyncError(null);
+      void utils.dashboard.summary.invalidate();
+      void utils.account.list.invalidate();
+    },
+    onError: (err) => setSyncError(err.message),
+  });
+
+  const syncAccountsMutation = api.basiq.syncAccounts.useMutation({
+    onSuccess: () => syncTxMutation.mutate(),
+    onError: (err) => setSyncError(err.message),
+  });
+
+  const isPending = syncAccountsMutation.isPending ?? syncTxMutation.isPending;
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => {
+          setSyncError(null);
+          syncAccountsMutation.mutate();
+        }}
+        disabled={isPending}
+        className="flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+      >
+        {isPending && (
+          <svg
+            className="h-4 w-4 animate-spin text-gray-500"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            />
+          </svg>
+        )}
+        {isPending ? "Syncing..." : "Sync Now"}
+      </button>
+      {syncError && (
+        <p className="text-sm text-red-600">{syncError}</p>
+      )}
+    </div>
+  );
+}
+
 function currentMonthYear(): string {
   const now = new Date();
   const y = now.getFullYear();
@@ -38,17 +99,20 @@ export function DashboardClient() {
 
   return (
     <div className="space-y-6">
-      {/* Month selector */}
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700">Month:</label>
-        <input
-          type="month"
-          className="rounded border px-3 py-1.5 text-sm"
-          value={monthYear}
-          onChange={(e) => setMonthYear(e.target.value)}
-          max={currentMonthYear()}
-        />
-        <span className="text-sm text-gray-500">{monthLabel}</span>
+      {/* Month selector + Sync */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Month:</label>
+          <input
+            type="month"
+            className="rounded border px-3 py-1.5 text-sm"
+            value={monthYear}
+            onChange={(e) => setMonthYear(e.target.value)}
+            max={currentMonthYear()}
+          />
+          <span className="text-sm text-gray-500">{monthLabel}</span>
+        </div>
+        <SyncButton />
       </div>
 
       {isLoading && (
