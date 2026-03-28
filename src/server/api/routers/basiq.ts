@@ -6,10 +6,12 @@ import {
   createAuthLink,
   createBasiqUser,
   createWebhook,
+  deleteWebhook,
   getBasiqAccounts,
   getBasiqTransactions,
   getServerToken,
   listWebhooks,
+  sendTestWebhook,
 } from "@/lib/basiq";
 import { upsertTransactions } from "@/lib/upsertTransactions";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
@@ -163,4 +165,26 @@ export const basiqRouter = createTRPCRouter({
       const webhook = await createWebhook(token, input.appUrl);
       return webhook;
     }),
+
+  /**
+   * deleteWebhook
+   * Remove a registered webhook by ID.
+   */
+  deleteWebhook: protectedProcedure
+    .input(z.object({ webhookId: z.string() }))
+    .mutation(async ({ input }) => {
+      const token = await getServerToken(env.BASIQ_API_KEY);
+      await deleteWebhook(token, input.webhookId);
+      return { deleted: true };
+    }),
+
+  /**
+   * testWebhook
+   * Send a test event to all registered webhooks to verify delivery.
+   */
+  testWebhook: protectedProcedure.mutation(async () => {
+    const token = await getServerToken(env.BASIQ_API_KEY);
+    await sendTestWebhook(token, "transactions.updated");
+    return { sent: true };
+  }),
 });

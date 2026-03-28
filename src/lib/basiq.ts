@@ -221,3 +221,52 @@ export async function getBasiqTransactions(
   const data = (await res.json()) as { data: BasiqTransaction[] };
   return data.data ?? [];
 }
+
+/**
+ * Delete a registered webhook by ID.
+ */
+export async function deleteWebhook(
+  token: string,
+  webhookId: string,
+): Promise<void> {
+  const res = await fetch(
+    `${BASIQ_BASE}/notifications/webhooks/${webhookId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "basiq-version": "3.0",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Basiq deleteWebhook error ${res.status}: ${text}`);
+  }
+  // 204 No Content — nothing to return
+}
+
+/**
+ * Send a test webhook message for a given event type.
+ * Basiq will deliver the test event to all registered webhooks.
+ */
+export async function sendTestWebhook(
+  token: string,
+  eventTypeId: string,
+): Promise<void> {
+  const res = await fetch(`${BASIQ_BASE}/notifications/messages/test`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "basiq-version": "3.0",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ eventTypeId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Basiq sendTestWebhook error ${res.status}: ${text}`);
+  }
+}

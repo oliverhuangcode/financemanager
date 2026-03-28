@@ -10,8 +10,8 @@ export function AccountsClient() {
   const { data: webhooks, isLoading: webhooksLoading } =
     api.basiq.webhookStatus.useQuery();
 
-  // One-time secret revealed after successful registration
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
+  const [testSent, setTestSent] = useState(false);
 
   const connectMutation = api.basiq.createConsentUrl.useMutation({
     onSuccess: ({ consentUrl }) => {
@@ -28,9 +28,20 @@ export function AccountsClient() {
   const registerWebhookMutation = api.basiq.registerWebhook.useMutation({
     onSuccess: (webhook) => {
       void utils.basiq.webhookStatus.invalidate();
-      if (webhook.secret) {
-        setRevealedSecret(webhook.secret);
-      }
+      if (webhook.secret) setRevealedSecret(webhook.secret);
+    },
+  });
+
+  const deleteWebhookMutation = api.basiq.deleteWebhook.useMutation({
+    onSuccess: () => {
+      void utils.basiq.webhookStatus.invalidate();
+    },
+  });
+
+  const testWebhookMutation = api.basiq.testWebhook.useMutation({
+    onSuccess: () => {
+      setTestSent(true);
+      setTimeout(() => setTestSent(false), 4000);
     },
   });
 
@@ -69,14 +80,12 @@ export function AccountsClient() {
         {isLoading && (
           <p className="text-sm text-gray-500">Loading accounts...</p>
         )}
-
         {accounts && accounts.length === 0 && (
           <p className="text-sm text-gray-500">
             No accounts connected yet. Click &quot;Connect bank account&quot; to
             get started.
           </p>
         )}
-
         {accounts && accounts.length > 0 && (
           <ul className="divide-y divide-gray-200 rounded-lg border">
             {accounts.map((acc) => (
@@ -85,11 +94,9 @@ export function AccountsClient() {
                   <p className="font-medium">{acc.name}</p>
                   <p className="text-sm capitalize text-gray-500">{acc.type}</p>
                 </div>
-                <div className="text-right">
-                  <p className="font-medium">
-                    {acc.currency} {Number(acc.balance).toFixed(2)}
-                  </p>
-                </div>
+                <p className="font-medium">
+                  {acc.currency} {Number(acc.balance).toFixed(2)}
+                </p>
               </li>
             ))}
           </ul>
@@ -114,47 +121,78 @@ export function AccountsClient() {
         {!webhooksLoading && hasWebhook && (
           <ul className="divide-y divide-gray-200 rounded-lg border">
             {webhooks.map((wh) => (
-              <li key={wh.id} className="flex items-center justify-between p-4">
-                <div>
-                  <p className="text-sm font-medium">{wh.url}</p>
+              <li key={wh.id} className="flex items-center justify-between gap-4 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{wh.url}</p>
                   <p className="mt-0.5 text-xs text-gray-400">ID: {wh.id}</p>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    wh.status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-yellow-100 text-yellow-700"
-                  }`}
-                >
-                  {wh.status}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      wh.status === "active"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    {wh.status}
+                  </span>
+                  <button
+                    onClick={() => deleteWebhookMutation.mutate({ webhookId: wh.id })}
+                    disabled={deleteWebhookMutation.isPending}
+                    className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deleteWebhookMutation.isPending ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
+        )}
+
+        {deleteWebhookMutation.error && (
+          <p className="text-sm text-red-600">{deleteWebhookMutation.error.message}</p>
         )}
 
         {!webhooksLoading && !hasWebhook && (
           <p className="text-sm text-gray-500">No webhooks registered yet.</p>
         )}
 
-        {/* Register button — only show when no webhook exists */}
-        {!hasWebhook && (
-          <button
-            onClick={() =>
-              registerWebhookMutation.mutate({
-                appUrl: window.location.origin,
-              })
-            }
-            disabled={registerWebhookMutation.isPending}
-            className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {registerWebhookMutation.isPending ? "Registering..." : "Register Webhook"}
-          </button>
-        )}
+        {/* Action buttons */}
+        <div className="flex gap-3">
+          {!hasWebhook && (
+            <button
+              onClick={() =>
+                registerWebhookMutation.mutate({
+                  appUrl: window.location.origin,
+                })
+              }
+              disabled={registerWebhookMutation.isPending}
+              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {registerWebhookMutation.isPending ? "Registering..." : "Register Webhook"}
+            </button>
+          )}
+
+          {hasWebhook && (
+            <button
+              onClick={() => testWebhookMutation.mutate()}
+              disabled={testWebhookMutation.isPending}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              {testWebhookMutation.isPending ? "Sending..." : "Send Test Event"}
+            </button>
+          )}
+        </div>
 
         {registerWebhookMutation.error && (
-          <p className="text-sm text-red-600">
-            {registerWebhookMutation.error.message}
+          <p className="text-sm text-red-600">{registerWebhookMutation.error.message}</p>
+        )}
+        {testWebhookMutation.error && (
+          <p className="text-sm text-red-600">{testWebhookMutation.error.message}</p>
+        )}
+        {testSent && (
+          <p className="text-sm text-green-600">
+            Test event sent — check your webhook logs to confirm delivery.
           </p>
         )}
 
@@ -168,13 +206,8 @@ export function AccountsClient() {
               BASIQ_WEBHOOK_SECRET={revealedSecret}
             </code>
             <ol className="list-inside list-decimal space-y-1 text-xs text-yellow-700">
-              <li>
-                Add this to your <strong>.env</strong> file locally
-              </li>
-              <li>
-                Add it to{" "}
-                <strong>Vercel → Settings → Environment Variables</strong>
-              </li>
+              <li>Add this to your <strong>.env</strong> file locally</li>
+              <li>Add it to <strong>Vercel → Settings → Environment Variables</strong></li>
               <li>Redeploy for it to take effect</li>
             </ol>
             <button
