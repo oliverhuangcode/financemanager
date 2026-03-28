@@ -1,8 +1,5 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { type DefaultSession, type NextAuthConfig } from "next-auth";
+import type { DefaultSession, NextAuthConfig } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-
-import { db } from "@/server/db";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -17,7 +14,13 @@ declare module "next-auth" {
 }
 
 /**
- * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
+ * Edge-safe auth config — NO Prisma/Node.js-only imports.
+ * Used directly by middleware (edge runtime) and spread into the full server config.
+ *
+ * Contains:
+ * - Google OAuth provider
+ * - Custom sign-in page (so unauth redirects go to /login, not /api/auth/signin)
+ * - `authorized` callback for middleware route protection
  */
 export const authConfig = {
   providers: [
@@ -26,14 +29,14 @@ export const authConfig = {
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
     }),
   ],
-  adapter: PrismaAdapter(db),
+  pages: {
+    signIn: "/login",
+  },
   callbacks: {
-    session: ({ session, user }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: user.id,
-      },
-    }),
+    authorized({ auth }) {
+      // Return true if a session user exists (i.e. authenticated).
+      // Middleware uses this to gate all matched routes.
+      return !!auth?.user;
+    },
   },
 } satisfies NextAuthConfig;

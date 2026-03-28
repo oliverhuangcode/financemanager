@@ -1,9 +1,35 @@
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth from "next-auth";
 import { cache } from "react";
 
+import { db } from "@/server/db";
 import { authConfig } from "./config";
 
-const { auth: uncachedAuth, handlers, signIn, signOut } = NextAuth(authConfig);
+/**
+ * Full server-side NextAuth config.
+ * Extends the edge-safe authConfig with the Prisma adapter (database sessions)
+ * and a session callback that injects the DB user's id into the session object.
+ *
+ * NOT imported by middleware — only used in Server Components, API routes, and tRPC context.
+ */
+const {
+  auth: uncachedAuth,
+  handlers,
+  signIn,
+  signOut,
+} = NextAuth({
+  ...authConfig,
+  adapter: PrismaAdapter(db),
+  callbacks: {
+    session: ({ session, user }) => ({
+      ...session,
+      user: {
+        ...session.user,
+        id: user.id,
+      },
+    }),
+  },
+});
 
 const auth = cache(uncachedAuth);
 

@@ -6,7 +6,7 @@
 |-------|------|--------|-------|
 | 1 | Project Scaffold & Infrastructure | Complete | 01-01 |
 | 2 | Database Schema & Prisma Setup | Complete | 02-01 |
-| 3 | Authentication (NextAuth + Google) | Not Started | TBD |
+| 3 | Authentication (NextAuth + Google) | Complete | 03-01 |
 | 4 | Basiq Integration — Account Connection | Not Started | TBD |
 | 5 | Basiq Webhooks — Realtime Transaction Sync | Not Started | TBD |
 | 6 | Transaction Feed UI | Not Started | TBD |
