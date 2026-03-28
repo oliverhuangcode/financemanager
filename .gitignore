@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+
+# Environment variables (NEVER commit real values)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Generated (Prisma)
+/generated
+/src/generated
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Ralph loop state
+.ralph/logs/
+.ralph/status.json
+.ralph/progress.json
+.ralph/.call_count
+.ralph/.last_reset
+.ralph/.exit_signals
+.ralph/.response_analysis
+.ralph/.circuit_breaker_state
+.ralph/.claude_session_id
+.ralph/.ralph_session
+.ralph/.ralph_session_history
