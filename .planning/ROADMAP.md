@@ -10,7 +10,7 @@
 | 4 | Basiq Integration — Account Connection | Complete | 04-01 |
 | 5 | Basiq Webhooks — Realtime Transaction Sync | Complete | 05-01 |
 | 6 | Transaction Feed UI | Complete | 06-01 |
-| 7 | Dashboard | Not Started | TBD |
+| 7 | Dashboard | Complete | 07-01 |
 | 8 | Budgets | Not Started | TBD |
 | 9 | Analytics & Charts | Not Started | TBD |
 | 10 | Polish, Deployment & Verification | Not Started | TBD |
