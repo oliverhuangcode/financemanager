@@ -112,3 +112,45 @@ export async function getBasiqAccounts(
   const data = (await res.json()) as { data: BasiqAccount[] };
   return data.data ?? [];
 }
+
+export interface BasiqTransaction {
+  id: string;
+  description: string;
+  amount: string;
+  currency: string;
+  postDate: string | null;
+  transactionDate: string | null;
+  transactionType: "debit" | "credit";
+  enrich?: {
+    category?: string;
+  };
+}
+
+/**
+ * Fetch transactions for a specific account from Basiq.
+ * Filters by account ID and fetches up to 500 most recent transactions.
+ */
+export async function getBasiqTransactions(
+  token: string,
+  basiqUserId: string,
+  basiqAccountId: string,
+): Promise<BasiqTransaction[]> {
+  const filter = `account.id.eq('${basiqAccountId}')`;
+  const url = `${BASIQ_BASE}/users/${basiqUserId}/transactions?filter=${encodeURIComponent(filter)}&limit=500`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "basiq-version": "3.0",
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Basiq getTransactions error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as { data: BasiqTransaction[] };
+  return data.data ?? [];
+}

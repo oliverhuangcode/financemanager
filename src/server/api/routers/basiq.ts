@@ -5,8 +5,10 @@ import {
   createAuthLink,
   createBasiqUser,
   getBasiqAccounts,
+  getBasiqTransactions,
   getServerToken,
 } from "@/lib/basiq";
+import { upsertTransactions } from "@/lib/upsertTransactions";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
 export const basiqRouter = createTRPCRouter({
@@ -85,5 +87,41 @@ export const basiqRouter = createTRPCRouter({
     );
 
     return upserted;
+  }),
+
+  /**
+   * syncTransactions
+   * Manual trigger: fetch transactions from Basiq for all connected accounts
+   * and upsert them idempotently. Useful when webhooks are unavailable.
+   */
+  syncTransactions: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+
+    const connection = await ctx.db.basiqConnection.findFirst({
+      where: { userId },
+      include: { bankAccounts: true },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "No bank connection found. Connect an account first.",
+      });
+    }
+
+    const token = await getServerToken(env.BASIQ_API_KEY);
+    let total = 0;
+
+    for (const bankAccount of connection.bankAccounts) {
+      const txs = await getBasiqTransactions(
+        token,
+        connection.basiqUserId,
+        bankAccount.basiqAccountId,
+      );
+      const count = await upsertTransactions(ctx.db, bankAccount.id, txs);
+      total += count;
+    }
+
+    return { synced: total };
   }),
 });
