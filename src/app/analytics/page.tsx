@@ -1,8 +1,17 @@
-export default function AnalyticsPage() {
+import { redirect } from "next/navigation";
+
+import { auth } from "@/server/auth";
+
+import { AnalyticsClient } from "./_components/AnalyticsClient";
+
+export default async function AnalyticsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-bold">Analytics</h1>
-      <p className="mt-2 text-gray-500">Analytics coming in Phase 9</p>
+      <h1 className="mb-6 text-2xl font-bold">Analytics</h1>
+      <AnalyticsClient />
     </main>
   );
 }
