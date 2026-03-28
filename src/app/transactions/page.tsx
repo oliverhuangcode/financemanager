@@ -1,8 +1,30 @@
-export default function TransactionsPage() {
+import { redirect } from "next/navigation";
+
+import { auth } from "@/server/auth";
+import { db } from "@/server/db";
+
+import { TransactionsClient } from "./_components/TransactionsClient";
+
+export default async function TransactionsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const connections = await db.basiqConnection.findMany({
+    where: { userId: session.user.id },
+    select: {
+      bankAccounts: {
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      },
+    },
+  });
+
+  const accounts = connections.flatMap((c) => c.bankAccounts);
+
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-bold">Transactions</h1>
-      <p className="mt-2 text-gray-500">Transactions coming in Phase 6</p>
+      <h1 className="mb-6 text-2xl font-bold">Transactions</h1>
+      <TransactionsClient accounts={accounts} />
     </main>
   );
 }

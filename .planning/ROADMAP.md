@@ -8,7 +8,7 @@
 | 2 | Database Schema & Prisma Setup | Complete | 02-01 |
 | 3 | Authentication (NextAuth + Google) | Complete | 03-01 |
 | 4 | Basiq Integration — Account Connection | Complete | 04-01 |
-| 5 | Basiq Webhooks — Realtime Transaction Sync | Not Started | TBD |
+| 5 | Basiq Webhooks — Realtime Transaction Sync | Complete | 05-01 |
 | 6 | Transaction Feed UI | Not Started | TBD |
 | 7 | Dashboard | Not Started | TBD |
 | 8 | Budgets | Not Started | TBD |
