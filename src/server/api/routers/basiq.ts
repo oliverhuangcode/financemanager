@@ -1,12 +1,15 @@
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 
 import { env } from "@/env";
 import {
   createAuthLink,
   createBasiqUser,
+  createWebhook,
   getBasiqAccounts,
   getBasiqTransactions,
   getServerToken,
+  listWebhooks,
 } from "@/lib/basiq";
 import { upsertTransactions } from "@/lib/upsertTransactions";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
@@ -124,4 +127,40 @@ export const basiqRouter = createTRPCRouter({
 
     return { synced: total };
   }),
+
+  /**
+   * webhookStatus
+   * List all webhooks registered for this Basiq application.
+   */
+  webhookStatus: protectedProcedure.query(async () => {
+    const token = await getServerToken(env.BASIQ_API_KEY);
+    const webhooks = await listWebhooks(token);
+    return webhooks;
+  }),
+
+  /**
+   * registerWebhook
+   * Register the app's /api/webhooks/basiq endpoint with Basiq.
+   * Returns the webhook including the one-time signing secret — show it to
+   * the user so they can add it to BASIQ_WEBHOOK_SECRET in their env.
+   */
+  registerWebhook: protectedProcedure
+    .input(z.object({ appUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const token = await getServerToken(env.BASIQ_API_KEY);
+
+      // Check for existing webhook at this URL to avoid duplicates (409)
+      const existing = await listWebhooks(token);
+      const webhookUrl = `${input.appUrl}/api/webhooks/basiq`;
+      const duplicate = existing.find((w) => w.url === webhookUrl);
+      if (duplicate) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A webhook for this URL already exists (status: ${duplicate.status}). ID: ${duplicate.id}`,
+        });
+      }
+
+      const webhook = await createWebhook(token, input.appUrl);
+      return webhook;
+    }),
 });

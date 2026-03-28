@@ -1,5 +1,72 @@
 const BASIQ_BASE = "https://au-api.basiq.io";
 
+export interface BasiqWebhook {
+  id: string;
+  type: string;
+  name: string;
+  description?: string;
+  url: string;
+  status: string;
+  secret?: string;
+  links: { self: string };
+}
+
+/**
+ * Register a new webhook endpoint with Basiq.
+ * Returns the created webhook including the one-time signing secret.
+ */
+export async function createWebhook(
+  token: string,
+  appUrl: string,
+): Promise<BasiqWebhook> {
+  const res = await fetch(`${BASIQ_BASE}/notifications/webhooks`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "basiq-version": "3.0",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "FinanceManager",
+      description: "Realtime transaction sync",
+      url: `${appUrl}/api/webhooks/basiq`,
+      subscribedEvents: [
+        "transactions.updated",
+        "account.updated",
+        "connection.invalidated",
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Basiq createWebhook error ${res.status}: ${text}`);
+  }
+
+  return (await res.json()) as BasiqWebhook;
+}
+
+/**
+ * List all registered webhooks for this application.
+ */
+export async function listWebhooks(token: string): Promise<BasiqWebhook[]> {
+  const res = await fetch(`${BASIQ_BASE}/notifications/webhooks`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "basiq-version": "3.0",
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Basiq listWebhooks error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as { data: BasiqWebhook[] };
+  return data.data ?? [];
+}
+
 export interface BasiqAccount {
   id: string;
   name: string;
