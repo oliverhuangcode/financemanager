@@ -4,7 +4,7 @@
 
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
-| 1 | Project Scaffold & Infrastructure | Not Started | TBD |
+| 1 | Project Scaffold & Infrastructure | Complete | 01-01 |
 | 2 | Database Schema & Prisma Setup | Not Started | TBD |
 | 3 | Authentication (NextAuth + Google) | Not Started | TBD |
 | 4 | Basiq Integration — Account Connection | Not Started | TBD |
