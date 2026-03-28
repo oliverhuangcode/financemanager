@@ -5,7 +5,7 @@
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
 | 1 | Project Scaffold & Infrastructure | Complete | 01-01 |
-| 2 | Database Schema & Prisma Setup | Not Started | TBD |
+| 2 | Database Schema & Prisma Setup | Complete | 02-01 |
 | 3 | Authentication (NextAuth + Google) | Not Started | TBD |
 | 4 | Basiq Integration — Account Connection | Not Started | TBD |
 | 5 | Basiq Webhooks — Realtime Transaction Sync | Not Started | TBD |
