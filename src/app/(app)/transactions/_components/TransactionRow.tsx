@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORIES } from "@/server/api/routers/transaction";
+import { CATEGORIES } from "@/lib/categories";
 import { api, type RouterOutputs } from "@/trpc/react";
 
 type TransactionItem =

@@ -4,6 +4,9 @@ import { useState } from "react";
 
 import { api } from "@/trpc/react";
 
+import { CsvImport } from "./CsvImport";
+import { PdfImport } from "./PdfImport";
+
 export function AccountsClient() {
   const utils = api.useUtils();
   const { data: accounts, isLoading } = api.account.list.useQuery();
@@ -12,6 +15,7 @@ export function AccountsClient() {
 
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   const [testSent, setTestSent] = useState(false);
+  const [mobile, setMobile] = useState("");
 
   const connectMutation = api.basiq.createConsentUrl.useMutation({
     onSuccess: ({ consentUrl }) => {
@@ -53,10 +57,20 @@ export function AccountsClient() {
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Bank Accounts</h2>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="tel"
+              placeholder="Mobile number (e.g. 61412345678)"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex gap-3">
           <button
-            onClick={() => connectMutation.mutate()}
-            disabled={connectMutation.isPending}
+            onClick={() => connectMutation.mutate({ mobile })}
+            disabled={connectMutation.isPending || !mobile.trim()}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {connectMutation.isPending ? "Connecting..." : "Connect bank account"}
@@ -68,6 +82,7 @@ export function AccountsClient() {
           >
             {syncMutation.isPending ? "Syncing..." : "Sync accounts"}
           </button>
+          </div>
         </div>
 
         {connectMutation.error && (
@@ -102,6 +117,12 @@ export function AccountsClient() {
           </ul>
         )}
       </section>
+
+      {/* ── PDF Import ── */}
+      <PdfImport />
+
+      {/* ── CSV Import ── */}
+      <CsvImport />
 
       {/* ── Webhooks ── */}
       <section className="space-y-4">

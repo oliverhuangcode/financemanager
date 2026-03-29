@@ -1,25 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import { CATEGORIES } from "@/lib/categories";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
+export { CATEGORIES };
 export const PAGE_SIZE = 50;
-
-export const CATEGORIES = [
-  "Food & Dining",
-  "Shopping",
-  "Transport",
-  "Entertainment",
-  "Bills & Utilities",
-  "Health & Fitness",
-  "Travel",
-  "Income",
-  "Transfer",
-  "ATM & Cash",
-  "Business",
-  "Education",
-  "Uncategorised",
-] as const;
 
 export const transactionRouter = createTRPCRouter({
   /**

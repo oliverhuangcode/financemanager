@@ -21,11 +21,11 @@ const {
   ...authConfig,
   adapter: PrismaAdapter(db),
   callbacks: {
-    session: ({ session, user }) => ({
+    session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
-        id: user.id,
+        id: token.sub!,
       },
     }),
   },

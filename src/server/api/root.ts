@@ -5,6 +5,7 @@ import { basiqRouter } from "@/server/api/routers/basiq";
 import { budgetRouter } from "@/server/api/routers/budget";
 import { dashboardRouter } from "@/server/api/routers/dashboard";
 import { healthRouter } from "@/server/api/routers/health";
+import { importRouter } from "@/server/api/routers/import";
 import { transactionRouter } from "@/server/api/routers/transaction";
 
 /**
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   budget: budgetRouter,
   analytics: analyticsRouter,
+  import: importRouter,
 });
 
 // export type definition of API

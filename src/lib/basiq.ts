@@ -30,11 +30,6 @@ export async function createWebhook(
       name: "FinanceManager",
       description: "Realtime transaction sync",
       url: `${appUrl}/api/webhooks/basiq`,
-      subscribedEvents: [
-        "transactions.updated",
-        "account.updated",
-        "connection.invalidated",
-      ],
     }),
   });
 
@@ -81,12 +76,11 @@ export interface BasiqAccount {
  * Uses HTTP Basic auth: base64(apiKey + ":") per Basiq v3 docs.
  */
 export async function getServerToken(apiKey: string): Promise<string> {
-  const credentials = Buffer.from(`${apiKey}:`).toString("base64");
-
+  // Basiq v3 API keys are already base64-encoded — use directly as Basic auth value
   const res = await fetch(`${BASIQ_BASE}/token`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${credentials}`,
+      Authorization: `Basic ${apiKey}`,
       "basiq-version": "3.0",
       "Content-Type": "application/x-www-form-urlencoded",
     },
@@ -134,6 +128,7 @@ export async function createBasiqUser(
 export async function createAuthLink(
   token: string,
   basiqUserId: string,
+  mobile: string,
 ): Promise<string> {
   const res = await fetch(`${BASIQ_BASE}/users/${basiqUserId}/auth_link`, {
     method: "POST",
@@ -142,7 +137,7 @@ export async function createAuthLink(
       "basiq-version": "3.0",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ mobile }),
   });
 
   if (!res.ok) {

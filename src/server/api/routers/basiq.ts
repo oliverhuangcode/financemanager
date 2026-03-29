@@ -22,31 +22,33 @@ export const basiqRouter = createTRPCRouter({
    * Find or create a BasiqConnection for the current user, then create an
    * auth link and return the Basiq-hosted consent URL.
    */
-  createConsentUrl: protectedProcedure.mutation(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
-    const token = await getServerToken(env.BASIQ_API_KEY);
+  createConsentUrl: protectedProcedure
+    .input(z.object({ mobile: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const token = await getServerToken(env.BASIQ_API_KEY);
 
-    let connection = await ctx.db.basiqConnection.findFirst({
-      where: { userId },
-    });
+      let connection = await ctx.db.basiqConnection.findFirst({
+        where: { userId },
+      });
 
-    if (!connection) {
-      const userEmail = ctx.session.user.email;
-      if (!userEmail) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "User email required to create Basiq connection.",
+      if (!connection) {
+        const userEmail = ctx.session.user.email;
+        if (!userEmail) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "User email required to create Basiq connection.",
+          });
+        }
+        const basiqUserId = await createBasiqUser(token, userEmail);
+        connection = await ctx.db.basiqConnection.create({
+          data: { userId, basiqUserId },
         });
       }
-      const basiqUserId = await createBasiqUser(token, userEmail);
-      connection = await ctx.db.basiqConnection.create({
-        data: { userId, basiqUserId },
-      });
-    }
 
-    const consentUrl = await createAuthLink(token, connection.basiqUserId);
-    return { consentUrl };
-  }),
+      const consentUrl = await createAuthLink(token, connection.basiqUserId, input.mobile);
+      return { consentUrl };
+    }),
 
   /**
    * syncAccounts

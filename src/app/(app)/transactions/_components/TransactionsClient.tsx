@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { CATEGORIES } from "@/server/api/routers/transaction";
+import { CATEGORIES } from "@/lib/categories";
 import { api } from "@/trpc/react";
 
 import { TransactionRow } from "./TransactionRow";
