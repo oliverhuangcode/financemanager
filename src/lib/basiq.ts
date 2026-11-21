@@ -15,14 +15,58 @@ export interface BasiqWebhook {
   links: { self: string };
 }
 
+/** Events the webhook route handles (see src/app/api/webhooks/basiq/route.ts). */
+export const WANTED_WEBHOOK_EVENTS = [
+  "transactions.updated",
+  "account.updated",
+  "connection.invalidated",
+] as const;
+
+/**
+ * List the event type ids Basiq supports (GET /events/types).
+ * Used so we only subscribe to events that exist, instead of guessing names.
+ */
+export async function listEventTypes(token: string): Promise<string[]> {
+  const res = await fetch(`${BASIQ_BASE}/events/types`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "basiq-version": "3.0",
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Basiq listEventTypes error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as { data?: { id?: string }[] };
+  return (data.data ?? [])
+    .map((t) => t.id)
+    .filter((id): id is string => typeof id === "string");
+}
+
 /**
  * Register a new webhook endpoint with Basiq.
+ * Basiq rejects a subscription without events ("invalid-content"), so this
+ * subscribes to the WANTED_WEBHOOK_EVENTS that Basiq actually offers.
  * Returns the created webhook including the one-time signing secret.
  */
 export async function createWebhook(
   token: string,
   appUrl: string,
 ): Promise<BasiqWebhook> {
+  const available = await listEventTypes(token);
+  const subscribedEvents = WANTED_WEBHOOK_EVENTS.filter((e) =>
+    available.includes(e),
+  );
+  if (subscribedEvents.length === 0) {
+    throw new Error(
+      `None of the wanted Basiq events (${WANTED_WEBHOOK_EVENTS.join(", ")}) are available. ` +
+        `Basiq offers: ${available.join(", ") || "(none)"}`,
+    );
+  }
+
   const res = await fetch(`${BASIQ_BASE}/notifications/webhooks`, {
     method: "POST",
     headers: {
@@ -33,13 +77,16 @@ export async function createWebhook(
     body: JSON.stringify({
       name: "FinanceManager",
       description: "Realtime transaction sync",
-      url: `${appUrl}/api/webhooks/basiq`,
+      url: `${appUrl.replace(/\/+$/, "")}/api/webhooks/basiq`,
+      subscribedEvents,
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Basiq createWebhook error ${res.status}: ${text}`);
+    throw new Error(
+      `Basiq createWebhook error ${res.status} (events: ${subscribedEvents.join(", ")}): ${text}`,
+    );
   }
 
   return (await res.json()) as BasiqWebhook;
