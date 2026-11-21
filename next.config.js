@@ -5,6 +5,9 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  // Self-contained server in .next/standalone for the Docker image (Dokploy).
+  output: "standalone",
+};
 
 export default config;
