@@ -1,0 +1,171 @@
+# Adapted from app-template's deploy.yml.
+# Test every push and pull request. On main: build an ARM image, push it to
+# GitHub's container registry (ghcr.io), tell Dokploy to deploy it, and post
+# the result to Discord.
+#
+# Repo secrets (set them with scripts/setup-secrets.sh):
+#   DOKPLOY_URL          https://<your Dokploy panel domain>
+#   DOKPLOY_API_KEY      Dokploy > Settings > Profile > API/CLI
+#   DOKPLOY_APP_ID       the app's ID (from its URL in Dokploy)
+#   DISCORD_WEBHOOK_URL  webhook for the #deploys channel
+# Without the Dokploy secrets the image is still built; the deploy is skipped.
+
+name: Test, build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    env:
+      SKIP_ENV_VALIDATION: "1"
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  # Builds on every run so Dockerfile breakage shows up on the PR; only main pushes.
+  build:
+    needs: test
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - id: name
+        name: Image name
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          repo="${GITHUB_REPOSITORY#*/}"
+          echo "package=${repo,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+          provenance: false
+          tags: |
+            ${{ steps.name.outputs.image }}:latest
+            ${{ steps.name.outputs.image }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Free private package storage is 500 MB: keep the 10 newest images.
+      - uses: actions/delete-package-versions@v5
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        continue-on-error: true
+        with:
+          package-name: ${{ steps.name.outputs.package }}
+          package-type: container
+          min-versions-to-keep: 10
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
+      error: ${{ steps.deploy.outputs.error }}
+    steps:
+      - name: Trigger Dokploy deploy
+        id: deploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APP_ID: ${{ secrets.DOKPLOY_APP_ID }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$DOKPLOY_URL" ] || [ -z "$DOKPLOY_API_KEY" ] || [ -z "$DOKPLOY_APP_ID" ]; then
+            echo "::notice::Dokploy secrets not set; image pushed but not deployed."
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          first_line="${COMMIT_MESSAGE%%$'\n'*}"
+          body="$(jq -n --arg id "$DOKPLOY_APP_ID" --arg t "${GITHUB_SHA::7} ${first_line:0:80}" \
+            '{applicationId: $id, title: $t}')"
+          : > response.txt
+          code=$(curl -sS --max-time 60 -o response.txt -w '%{http_code}' -X POST "${DOKPLOY_URL%/}/api/application.deploy" \
+            -H "x-api-key: $DOKPLOY_API_KEY" -H 'Content-Type: application/json' -d "$body") || code=000
+          if [ "$code" -ge 300 ] || [ "$code" -eq 0 ]; then
+            case "$code" in
+              000)     hint="could not reach Dokploy: check DOKPLOY_URL (no path on the end) and that the server is up" ;;
+              401|403) hint="check DOKPLOY_API_KEY (Dokploy > Settings > Profile > API/CLI)" ;;
+              404)     hint="check DOKPLOY_APP_ID (the last part of the app's Dokploy URL, not the service name) and DOKPLOY_URL" ;;
+              5??)     hint="Dokploy or Cloudflare returned a server error: check the server, then re-run the failed job" ;;
+              *)       hint="unexpected response" ;;
+            esac
+            detail=$(head -c 200 response.txt | tr -d '\r\n')
+            echo "::error::Dokploy returned $code: $hint"
+            echo "$detail"
+            echo "error=Dokploy returned $code: $hint" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
+          echo "Deploy queued in Dokploy (it pulls :latest and restarts the app)."
+
+  notify:
+    needs: [test, build, deploy]
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TEST: ${{ needs.test.result }}
+          BUILD: ${{ needs.build.result }}
+          DEPLOY: ${{ needs.deploy.result }}
+          DEPLOYED: ${{ needs.deploy.outputs.deployed }}
+          DEPLOY_ERROR: ${{ needs.deploy.outputs.error }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then echo "No DISCORD_WEBHOOK_URL; skipping."; exit 0; fi
+          red=15158332
+          if [ "$TEST" != success ]; then
+            status="❌ Tests failed"; color=$red
+          elif [ "$BUILD" != success ]; then
+            status="❌ Image build failed"; color=$red
+          elif [ "$DEPLOY" != success ]; then
+            status="❌ Deploy failed"; color=$red
+          elif [ "$DEPLOYED" = true ]; then
+            status="✅ Deploying"; color=3066993
+          else
+            status="📦 Built, not deployed (no Dokploy secrets)"; color=16766720
+          fi
+          first_line="${COMMIT_MESSAGE%%$'\n'*}"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          jq -n --arg s "$status" --arg repo "${GITHUB_REPOSITORY#*/}" --arg t "${first_line:0:200}" \
+                --arg sha "${GITHUB_SHA::7}" --arg url "$run_url" --arg err "${DEPLOY_ERROR:0:300}" --argjson c "$color" \
+            '{embeds: [{title: ($s + " · " + $repo), url: $url, color: $c,
+               description: ("`" + $sha + "` " + $t + (if $err != "" then "\n" + $err else "" end))}],
+              allowed_mentions: {parse: []}}' > payload.json
+          curl -sS -f -X POST -H 'Content-Type: application/json' -d @payload.json "$WEBHOOK" > /dev/null

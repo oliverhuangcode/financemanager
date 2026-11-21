@@ -12,6 +12,6 @@ export const { auth: middleware } = NextAuth(authConfig);
 export const config = {
   // Protect all routes except the ones listed below.
   matcher: [
-    "/((?!api/auth|api/webhooks|_next/static|_next/image|favicon.ico|login).*)",
+    "/((?!api/auth|api/webhooks|healthz|_next/static|_next/image|favicon.ico|login).*)",
   ],
 };
