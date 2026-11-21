@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { countable, effectiveCategory } from "@/lib/aggregation";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
 export const dashboardRouter = createTRPCRouter({
@@ -42,7 +43,7 @@ export const dashboardRouter = createTRPCRouter({
       }));
 
       // 2. Debit transactions for the month — used for spend totals + categories
-      const monthTransactions = await ctx.db.transaction.findMany({
+      const monthRows = await ctx.db.transaction.findMany({
         where: {
           account: { connection: { userId } },
           date: { gte: monthStart, lt: monthEnd },
@@ -54,6 +55,8 @@ export const dashboardRouter = createTRPCRouter({
           userCategory: true,
         },
       });
+      // Own-account transfers are neither spending nor income
+      const monthTransactions = countable(monthRows);
 
       // 3. Total spent (sum of absolute debit amounts)
       const totalSpent = monthTransactions.reduce(
@@ -65,8 +68,7 @@ export const dashboardRouter = createTRPCRouter({
       //    (userCategory takes precedence over basiqCategory)
       const categoryMap = new Map<string, number>();
       for (const tx of monthTransactions) {
-        const cat =
-          tx.userCategory ?? tx.basiqCategory ?? "Uncategorised";
+        const cat = effectiveCategory(tx);
         categoryMap.set(
           cat,
           (categoryMap.get(cat) ?? 0) + Math.abs(Number(tx.amount)),

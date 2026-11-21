@@ -1,3 +1,7 @@
+import { type BasiqTransaction } from "./basiqMapping";
+
+export type { BasiqTransaction };
+
 const BASIQ_BASE = "https://au-api.basiq.io";
 
 export interface BasiqWebhook {
@@ -173,19 +177,6 @@ export async function getBasiqAccounts(
 
   const data = (await res.json()) as { data: BasiqAccount[] };
   return data.data ?? [];
-}
-
-export interface BasiqTransaction {
-  id: string;
-  description: string;
-  amount: string;
-  currency: string;
-  postDate: string | null;
-  transactionDate: string | null;
-  transactionType: "debit" | "credit";
-  enrich?: {
-    category?: string;
-  };
 }
 
 /**

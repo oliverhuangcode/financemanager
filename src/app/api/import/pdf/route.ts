@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/server/auth";
+import { isEmailAllowed } from "@/server/auth/allowlist";
 
 export interface PdfParsedRow {
   date: string;      // ISO string
@@ -270,7 +271,7 @@ function parseAnzPlusText(text: string): ParseResult {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) {
+  if (!session?.user?.id || !isEmailAllowed(session.user.email)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

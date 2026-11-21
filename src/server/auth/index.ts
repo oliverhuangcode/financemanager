@@ -21,11 +21,16 @@ const {
   ...authConfig,
   adapter: PrismaAdapter(db),
   callbacks: {
+    // Keep signIn/authorized from authConfig — replacing the object would drop the allowlist.
+    ...authConfig.callbacks,
     session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
-        id: token.sub!,
+        // Empty string (not a non-null assertion) if sub is ever missing;
+        // protectedProcedure rejects sessions without an id, so a missing id
+        // can never turn into an unfiltered `where: { userId: undefined }`.
+        id: token.sub ?? "",
       },
     }),
   },

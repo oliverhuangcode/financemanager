@@ -18,7 +18,17 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     BASIQ_API_KEY: z.string(),
-    BASIQ_WEBHOOK_SECRET: z.string().optional(),
+    // Required in production: the webhook endpoint is exempt from login, so
+    // without a secret anyone could trigger syncs.
+    BASIQ_WEBHOOK_SECRET:
+      process.env.NODE_ENV === "production"
+        ? z.string().min(1)
+        : z.string().optional(),
+    // Comma-separated emails allowed to sign in. Required in production.
+    ALLOWED_EMAILS:
+      process.env.NODE_ENV === "production"
+        ? z.string().min(1)
+        : z.string().optional(),
   },
 
   /**
@@ -42,6 +52,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     BASIQ_API_KEY: process.env.BASIQ_API_KEY,
     BASIQ_WEBHOOK_SECRET: process.env.BASIQ_WEBHOOK_SECRET,
+    ALLOWED_EMAILS: process.env.ALLOWED_EMAILS,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

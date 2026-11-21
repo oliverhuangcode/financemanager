@@ -12,6 +12,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "@/server/auth";
+import { isEmailAllowed } from "@/server/auth/allowlist";
 import { db } from "@/server/db";
 
 /**
@@ -111,7 +112,10 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(({ ctx, next }) => {
-    if (!ctx.session?.user) {
+    if (
+      !ctx.session?.user?.id ||
+      !isEmailAllowed(ctx.session.user.email)
+    ) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
     return next({

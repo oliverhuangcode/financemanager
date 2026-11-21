@@ -16,6 +16,21 @@ import {
 import { upsertTransactions } from "@/lib/upsertTransactions";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
+/**
+ * CSV/PDF imports store their accounts under a shadow BasiqConnection whose
+ * basiqUserId starts with "manual-". That id doesn't exist in Basiq, so every
+ * Basiq lookup must skip it, or a user who imported first and connected a
+ * bank later gets an opaque Basiq 404.
+ */
+export const MANUAL_CONNECTION_PREFIX = "manual-";
+
+function basiqConnectionWhere(userId: string) {
+  return {
+    userId,
+    NOT: { basiqUserId: { startsWith: MANUAL_CONNECTION_PREFIX } },
+  };
+}
+
 export const basiqRouter = createTRPCRouter({
   /**
    * createConsentUrl
@@ -29,7 +44,8 @@ export const basiqRouter = createTRPCRouter({
       const token = await getServerToken(env.BASIQ_API_KEY);
 
       let connection = await ctx.db.basiqConnection.findFirst({
-        where: { userId },
+        where: basiqConnectionWhere(userId),
+        orderBy: { createdAt: "asc" },
       });
 
       if (!connection) {
@@ -59,7 +75,8 @@ export const basiqRouter = createTRPCRouter({
     const userId = ctx.session.user.id;
 
     const connection = await ctx.db.basiqConnection.findFirst({
-      where: { userId },
+      where: basiqConnectionWhere(userId),
+      orderBy: { createdAt: "asc" },
     });
 
     if (!connection) {
@@ -105,7 +122,8 @@ export const basiqRouter = createTRPCRouter({
     const userId = ctx.session.user.id;
 
     const connection = await ctx.db.basiqConnection.findFirst({
-      where: { userId },
+      where: basiqConnectionWhere(userId),
+      orderBy: { createdAt: "asc" },
       include: { bankAccounts: true },
     });
 

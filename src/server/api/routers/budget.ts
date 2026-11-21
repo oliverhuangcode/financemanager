@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { effectiveCategory } from "@/lib/aggregation";
 import { CATEGORIES } from "@/server/api/routers/transaction";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
@@ -55,8 +56,7 @@ export const budgetRouter = createTRPCRouter({
       // 4. Aggregate actual spend per effective category
       const actualByCategory = new Map<string, number>();
       for (const tx of monthTxs) {
-        const cat =
-          tx.userCategory ?? tx.basiqCategory ?? "Uncategorised";
+        const cat = effectiveCategory(tx);
         actualByCategory.set(
           cat,
           (actualByCategory.get(cat) ?? 0) + Math.abs(Number(tx.amount)),

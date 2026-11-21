@@ -1,15 +1,18 @@
 import { type PrismaClient } from "@prisma/client";
 
-import { type BasiqTransaction } from "./basiq";
+import { type BasiqTransaction, mapBasiqTransaction } from "./basiqMapping";
 
 /**
  * Upsert Basiq transactions into the DB for a given BankAccount (by our internal accountId).
  *
  * Idempotency rules:
  * - Keyed on basiqTxId (Basiq's unique transaction ID)
- * - Creates new transactions with basiqCategory from Basiq (or "Uncategorised")
- * - On update: refreshes description, amount, basiqCategory
+ * - Pending transactions are skipped (see mapBasiqTransaction)
+ * - On update: refreshes description, amount, direction and basiqCategory,
+ *   so a re-sync corrects rows stored by older code
  * - userCategory is NEVER included in the update block — user overrides persist forever
+ *
+ * Returns the number of posted transactions written.
  */
 export async function upsertTransactions(
   db: PrismaClient,
@@ -18,31 +21,29 @@ export async function upsertTransactions(
 ): Promise<number> {
   let upserted = 0;
 
-  for (const tx of transactions) {
-    const date = new Date(
-      tx.postDate ?? tx.transactionDate ?? new Date().toISOString(),
-    );
-    const isCredit = tx.transactionType === "credit";
-    const basiqCategory = tx.enrich?.category ?? "Uncategorised";
+  for (const raw of transactions) {
+    const tx = mapBasiqTransaction(raw);
+    if (!tx) continue;
 
     await db.transaction.upsert({
-      where: { basiqTxId: tx.id },
+      where: { basiqTxId: tx.basiqTxId },
       create: {
         accountId,
-        basiqTxId: tx.id,
-        date,
+        basiqTxId: tx.basiqTxId,
+        date: tx.date,
         description: tx.description,
         amount: tx.amount,
-        currency: tx.currency ?? "AUD",
-        basiqCategory,
-        isCredit,
+        currency: tx.currency,
+        basiqCategory: tx.basiqCategory,
+        isCredit: tx.isCredit,
         // userCategory intentionally omitted — defaults to null
       },
       update: {
         // Mutable fields that Basiq may update (enrichment, corrections)
         description: tx.description,
         amount: tx.amount,
-        basiqCategory,
+        isCredit: tx.isCredit,
+        basiqCategory: tx.basiqCategory,
         // userCategory intentionally absent — never overwrite user's override
       },
     });
