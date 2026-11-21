@@ -98,8 +98,20 @@ export async function POST(req: NextRequest) {
   // 1. Read raw body as Buffer — must happen before any JSON parsing
   const rawBody = Buffer.from(await req.arrayBuffer());
 
-  // 2. Verify signature when secret is configured
-  if (env.BASIQ_WEBHOOK_SECRET) {
+  // 2. Verify the signature. Fail closed in production: this route is exempt
+  //    from login, so an unset secret must not mean "accept anything".
+  //    (env.js already requires the secret in production; this guards against
+  //    SKIP_ENV_VALIDATION builds.) Unsigned requests are only accepted in
+  //    development when no secret is configured.
+  if (!env.BASIQ_WEBHOOK_SECRET) {
+    if (env.NODE_ENV === "production") {
+      console.error("[webhook] BASIQ_WEBHOOK_SECRET is not set — rejecting");
+      return NextResponse.json(
+        { error: "Webhook not configured" },
+        { status: 401 },
+      );
+    }
+  } else {
     const webhookId = req.headers.get("webhook-id") ?? "";
     const webhookTimestamp = req.headers.get("webhook-timestamp") ?? "";
     const webhookSignature = req.headers.get("webhook-signature") ?? "";

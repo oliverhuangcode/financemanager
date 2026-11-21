@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { countable, effectiveCategory } from "@/lib/aggregation";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
 export const analyticsRouter = createTRPCRouter({
@@ -28,7 +29,7 @@ export const analyticsRouter = createTRPCRouter({
       const sixMonthsAgoDate = new Date(year, month - 6, 1);
 
       // Single query covering all 6 months
-      const allTransactions = await ctx.db.transaction.findMany({
+      const allRows = await ctx.db.transaction.findMany({
         where: {
           account: { connection: { userId } },
           date: { gte: sixMonthsAgoDate, lt: monthEnd },
@@ -42,6 +43,8 @@ export const analyticsRouter = createTRPCRouter({
         },
         orderBy: { date: "asc" },
       });
+      // Own-account transfers are neither spending nor income
+      const allTransactions = countable(allRows);
 
       // ── 1. Monthly totals (6 months) ──────────────────────────────────────
       // Build ordered list of 6 month keys: e.g. ["2025-10", ..., "2026-03"]
@@ -82,7 +85,7 @@ export const analyticsRouter = createTRPCRouter({
       );
       const categoryMap = new Map<string, number>();
       for (const tx of monthDebits) {
-        const cat = tx.userCategory ?? tx.basiqCategory ?? "Uncategorised";
+        const cat = effectiveCategory(tx);
         categoryMap.set(
           cat,
           (categoryMap.get(cat) ?? 0) + Math.abs(Number(tx.amount)),

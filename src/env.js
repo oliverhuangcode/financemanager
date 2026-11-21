@@ -18,7 +18,14 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     BASIQ_API_KEY: z.string(),
+    // Optional at build time so the app can boot before the webhook exists
+    // (the secret is only shown when you register it from inside the app).
+    // The webhook route fails closed at runtime: in production it returns 401
+    // until this is set.
     BASIQ_WEBHOOK_SECRET: z.string().optional(),
+    // Comma-separated emails allowed to sign in. Optional at build time so
+    // preview builds work; at runtime an empty list in production lets nobody in.
+    ALLOWED_EMAILS: z.string().optional(),
   },
 
   /**
@@ -42,6 +49,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     BASIQ_API_KEY: process.env.BASIQ_API_KEY,
     BASIQ_WEBHOOK_SECRET: process.env.BASIQ_WEBHOOK_SECRET,
+    ALLOWED_EMAILS: process.env.ALLOWED_EMAILS,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
