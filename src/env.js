@@ -18,17 +18,14 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     BASIQ_API_KEY: z.string(),
-    // Required in production: the webhook endpoint is exempt from login, so
-    // without a secret anyone could trigger syncs.
-    BASIQ_WEBHOOK_SECRET:
-      process.env.NODE_ENV === "production"
-        ? z.string().min(1)
-        : z.string().optional(),
-    // Comma-separated emails allowed to sign in. Required in production.
-    ALLOWED_EMAILS:
-      process.env.NODE_ENV === "production"
-        ? z.string().min(1)
-        : z.string().optional(),
+    // Optional at build time so the app can boot before the webhook exists
+    // (the secret is only shown when you register it from inside the app).
+    // The webhook route fails closed at runtime: in production it returns 401
+    // until this is set.
+    BASIQ_WEBHOOK_SECRET: z.string().optional(),
+    // Comma-separated emails allowed to sign in. Optional at build time so
+    // preview builds work; at runtime an empty list in production lets nobody in.
+    ALLOWED_EMAILS: z.string().optional(),
   },
 
   /**
