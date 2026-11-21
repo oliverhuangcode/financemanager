@@ -7,6 +7,7 @@ import {
   getBasiqTransactions,
   getServerToken,
 } from "@/lib/basiq";
+import { readEvent, type WebhookBody } from "@/lib/basiqWebhook";
 import { upsertTransactions } from "@/lib/upsertTransactions";
 import { db } from "@/server/db";
 
@@ -73,18 +74,6 @@ function verifyBasiqSignature(
   return false;
 }
 
-interface WebhookPayload {
-  id: string;
-  payload: {
-    eventTypeId: string;
-    eventId: string;
-    links: {
-      event: string;
-      eventEntity: string;
-    };
-  };
-}
-
 /**
  * Extract the Basiq userId from an eventEntity URL.
  * e.g. "https://au-api.basiq.io/users/abc123/connections/xyz" → "abc123"
@@ -132,6 +121,7 @@ export async function POST(req: NextRequest) {
         env.BASIQ_WEBHOOK_SECRET,
       )
     ) {
+      console.warn("[webhook] Rejected: invalid signature");
       return NextResponse.json(
         { error: "Invalid signature" },
         { status: 401 },
@@ -140,14 +130,23 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Parse payload
-  let body: WebhookPayload;
+  let body: WebhookBody;
   try {
-    body = JSON.parse(rawBody.toString("utf-8")) as WebhookPayload;
+    body = JSON.parse(rawBody.toString("utf-8")) as WebhookBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { eventTypeId, links } = body.payload;
+  const { eventTypeId, eventEntity } = readEvent(body ?? {});
+  if (!eventTypeId) {
+    // Log only the top-level keys (no values) so an unexpected shape is visible.
+    console.warn(
+      "[webhook] No eventTypeId in body; keys:",
+      Object.keys(body ?? {}).join(", "),
+    );
+    return NextResponse.json({ received: true });
+  }
+  console.log(`[webhook] received ${eventTypeId}`);
 
   // 4. Handle relevant events:
   //    transactions.updated — new transactions added for a user
@@ -157,11 +156,11 @@ export async function POST(req: NextRequest) {
     eventTypeId === "transactions.updated" ||
     eventTypeId === "account.updated"
   ) {
-    const basiqUserId = extractBasiqUserId(links.eventEntity);
+    const basiqUserId = eventEntity ? extractBasiqUserId(eventEntity) : null;
     if (!basiqUserId) {
       console.error(
         "[webhook] Could not extract basiqUserId from:",
-        links.eventEntity,
+        eventEntity ?? "(missing links.eventEntity)",
       );
       return NextResponse.json({ received: true });
     }
@@ -216,7 +215,7 @@ export async function POST(req: NextRequest) {
 
   if (eventTypeId === "connection.invalidated") {
     // Auth issue — log it. Future: notify user via email or flag in UI.
-    const basiqUserId = extractBasiqUserId(links.eventEntity);
+    const basiqUserId = eventEntity ? extractBasiqUserId(eventEntity) : null;
     console.warn(
       `[webhook] connection.invalidated for basiq user ${basiqUserId ?? "unknown"} — user may need to re-authenticate`,
     );
